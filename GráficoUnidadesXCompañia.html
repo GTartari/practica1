@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html>
+<html lang="en-US">
+<meta charset="UTF-8">
+<head>
+<script type='text/javascript' src='http://code.jquery.com/jquery-latest.min.js'></script>
+<script type='text/javascript' src='https://hst-api.wialon.com/wsdk/script/wialon.js'></script>
+<script type="text/javascript" src="Chart.js-master/Chart.js"></script>
+<script type="text/javascript" src="GlobalChartConfiguration.js"></script>
+<style>
+body {background-color: #E6E6E6;}
+div {background-color: #F3F3FF;}
+h1 {font-size:14px;}
+#log { border: 1px solid #c6c6c6; }
+.icon {float:left; margin:10px;}
+</style>
+<script type='text/javascript'>
+// Print message to log
+function msg(text) { $("#log").prepend(text + "<br/>"); }
+
+function init() { // Execute after login succeed
+	var sess = wialon.core.Session.getInstance(); // get instance of current Session
+	// flags to specify what kind of data should be returned
+	var flags = wialon.item.Item.dataFlag.base |
+	            wialon.item.Item.dataFlag.customFields | 
+	            wialon.item.Unit.dataFlag.lastMessage ;
+	sess.loadLibrary("itemCustomFields"); // load Custom Fields Library
+	sess.updateDataFlags( // load items to current session
+	    [{type: "type", data: "avl_unit", flags: flags, mode: 0}], // Items specification
+    	function (code) { // updateDataFlags callback
+		    if (code) { msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code  
+		    var units = sess.getItems("avl_unit"); // get loaded 'avl_unit's items
+		    if (!units || !units.length){ msg("No units found"); return; } // check if units found
+		    for(var i=0; i<units.length; i++) // construct Select list using found units
+			    $("#units").append("<option value='"+ units[i].getId() +"'>"+ units[i].getName() +"</option>");
+            // bind actions to selects 
+		    $("#units").change( getUnitM2M ); 
+		    getM2M();
+		    
+	});
+}
+
+function getM2M(){ // construct M2M chart
+	var em=0;
+	var mm=0;
+	var vom=0;
+	var vm=0;
+	var sess = wialon.core.Session.getInstance(); // get instance of current Session
+	var units = sess.getItems("avl_unit");
+	var unit = sess.getItem( units[0].getId() ); // get unit by id
+	for(var h=0; h<units.length; h++){
+		var unit=units[h].getCustomFields(); // get unit's Custom Fields
+		for(var k in unit){
+			if(unit[k].n == ".M2M"){
+				if(unit[k].v == "EM"){
+					em++;
+				}
+				if(unit[k].v == "MM"){
+					mm++;
+				}
+				if(unit[k].v == "VM"){
+					vm++;
+				}
+				if(unit[k].v == "VOM"){
+					vom++;
+				}
+			}
+		}
+	}
+
+	var data = {
+    labels: ["EM", "MM", "VM", "VOM"],
+    datasets: [
+        {
+            label: "Usuarios por Compañias",
+            fillColor: "rgba(151,187,205,0.5)",
+            strokeColor: "rgba(151,187,205,0.8)",
+            highlightFill: "rgba(151,187,205,0.75)",
+            highlightStroke: "rgba(151,187,205,1)",
+            data: [em, mm, vm, vom]
+        }
+    ]
+    };
+	var ctx = document.getElementById("myChart").getContext("2d");
+	var myBarChart = new Chart(ctx).Bar(data, BarChartConfiguration);
+    msg("Total de unidades: " + units.length);
+    var numeroUnidadesConf = em + mm + vm + vom;
+    msg("Unidades con información configurada: " + numeroUnidadesConf);
+}
+
+function getUnitM2M(){ // construct M2M information of selected unit
+	if(!$("#units").val()){ msg("Select unit"); return;} // exit if no unit selected
+	$("#sensors").html("<option></option>"); // add first empty element
+	var sess = wialon.core.Session.getInstance(); // get instance of current Session
+	var unit = sess.getItem( $("#units").val() ); // get unit by id
+	var customFields = unit.getCustomFields(); // get unit's Custom fields
+    var message = "";
+    for(var k in customFields){
+        if(customFields[k].n == ".M2M"){
+            message = "La SIM de esta unidad corresponde a ";
+            if(customFields[k].v == "EM"){
+                message = message + "Entel.";
+            }
+            if(customFields[k].v == "MM"){
+                message = message + "Movistar.";
+            }
+            if(customFields[k].v == "VM"){
+                message = message + "Virgin.";
+            }
+            if(customFields[k].v == "VOM"){
+                message = message + "Vodafone.";
+            }
+        }
+    }
+    if(message != ""){
+        document.getElementById("unitInfo").innerText = message;
+    document.getElementById("unitInfo").style.display = "block";
+    } else {
+        msg("Esta unidad no tiene guardada la información requerida.")
+    }
+}
+
+
+// execute when DOM ready
+$(document).ready(function () {
+	msg("Trying to login");
+	wialon.core.Session.getInstance().initSession("https://hst-api.wialon.com"); // init session
+	wialon.core.Session.getInstance().login("test", "test", "", // try to login
+    function (code) { // login callback
+        if (code){ msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+		msg("Logged successfully"); init(); // when login suceed then run init() function
+	});
+});
+
+
+
+</script>
+</head>
+<body>
+Seleccione una unidad: <select id="units"></select>
+</br>
+</br>
+<div id="unitInfo"></div>
+</br>
+<div id="log"></div>
+</br>
+<h1><b>Gráfico de Unidades por Compañia<b></h1>
+</br>
+<canvas id="myChart" style="border:1px solid #000000; background-color: #FFFFFF;" width="400" height="400"></canvas>
+</body>
+</html>

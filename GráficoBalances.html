@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script type='text/javascript' src='http://code.jquery.com/jquery-latest.min.js'></script>
+<script type='text/javascript' src='https://hst-api.wialon.com/wsdk/script/wialon.js'></script>
+<script type="text/javascript" src="Chart.js-master/Chart.js"></script>
+<script type="text/javascript" src="GlobalChartConfiguration.js"></script>
+<style>
+#log { border: 1px solid #c6c6c6; }
+</style>
+<script type='text/javascript'>
+
+	var cero=0;
+	var quinientos=0;
+	var mil=0;
+	var milquinientos=0;
+	var mayor=0;
+	var count=0;
+	var total;
+	var myBarChart;
+
+// Print message to log
+function msg(text) { $("#log").prepend(text + "<br/>"); }
+
+function init() { // Execute after login succeed
+	var sess = wialon.core.Session.getInstance(); // get instance of current Session
+	// flags to specify what kind of data should be returned
+	var flags = wialon.item.Item.dataFlag.base | wialon.item.Item.dataFlag.billingProps;
+	CreateChart();
+	sess.loadLibrary("resourceAccounts"); // load Accounts Library
+	sess.updateDataFlags( // load items to current session
+	    [{type: "type", data: "avl_resource", flags: flags, mode: 0}], // Items specification
+	    function (code) { // updateDataFlags callback
+		    if (code) { msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+		    var res = sess.getItems("avl_resource"); // get loaded 'avl_resource' items
+		    if (!res || !res.length){ msg("No resources found"); return; } // check if resources found
+		    for (var i=0; i<res.length; i++) // construct Select list using found resources
+			    $("#res").append("<option value='" + res[i].getId() + "'>" + res[i].getName() + "</option>");
+		    // bind action to select change
+		    $("#res").change( changeRes );
+		    getBalances();
+	});
+
+}
+
+
+function addMil(val){
+	count++;
+	if(val==0){
+		window.cero++;
+	}
+	if(val==1){
+		this.quinientos++;
+	}
+	if(val==2){
+		this.mil++;
+	}
+	if(val==3){
+		this.milquinientos++;
+	}
+	if(val==4){
+		this.mayor++;
+	}
+	update();
+}
+
+function CreateChart(){
+	var canvas = document.getElementById('#results-graph');
+	var ctx = canvas.getContext('2d');
+	var data = {
+    labels: ["0","0-500", "500-1000", "1000-1500", "1500+"],
+    datasets: [
+        {
+            label: "balances de cuentas",
+            fillColor: "rgba(151,187,205,0.5)",
+            strokeColor: "rgba(151,187,205,0.8)",
+            highlightFill: "rgba(151,187,205,0.75)",
+            highlightStroke: "rgba(151,187,205,1)",
+            data: [cero, quinientos, mil, milquinientos, mayor]
+        }
+    ]
+	};
+	var myBarChart1 = new Chart(ctx).Bar(data, BarChartConfiguration);
+    this.myBarChart=myBarChart1;
+}
+
+function update(){
+	myBarChart.datasets[0].bars[0].value=cero;
+	myBarChart.datasets[0].bars[1].value=quinientos;
+	myBarChart.datasets[0].bars[2].value=mil;
+	myBarChart.datasets[0].bars[3].value=milquinientos;
+	myBarChart.datasets[0].bars[4].value=mayor;
+	myBarChart.update();
+}
+
+function getBalances(){ // construct sensors Select list for selected unit	
+	var sess = wialon.core.Session.getInstance(); // get instance of current Session
+	var units = sess.getItems("avl_resource");
+	var accounts=[];
+	for(var r=0;r<units.length;r++){
+		if(units[r].getId()==units[r].getAccountId())
+			accounts[accounts.length]=units[r];
+	}
+	total=accounts.length;
+	msg("total de cuentas "+total);
+	for(var h=0; h<600;h++){//accounts.length; h++){
+		var account=accounts[h];
+		account.getAccountData(
+			function(code, data){ // Get account information as JSON Object
+		if(code){ msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+		// create message with account data
+				var balance=data.settings.balance;
+				if(balance == 0){
+					addMil(0);
+				}
+				else if(balance <= 500){
+					addMil(1);
+				}
+				else if(balance <= 1000){
+					addMil(2);
+				}
+				else if(balance <= 1500){
+					addMil(3);
+				}
+				else if(balance > 1500){
+					addMil(4);
+				}
+				});
+	}
+	/*update(myBarChart);*/
+
+}
+
+
+
+function changeRes(){ // execute on resource change
+	$("#get_btn").prop("disabled", true); // disable "get parameters" button
+	var res_id = $("#res").val(); // get selected resource id
+	if(!res_id) { msg("Select resource"); return; } // check if resources selected
+	var res = wialon.core.Session.getInstance().getItem(res_id); // get Resource by id
+	var is_account = (res.getId() == res.getAccountId());
+	if(is_account) // if resource is account
+		$("#get_btn").prop("disabled", false); // enable "get parameters" button
+	else // else (resource is not account)
+		msg("Resource <b>'"+ res.getName() +"'</b> is <b>not</b> account<br/>"); // print message
+}
+
+function showInfo(){ // print info about selected account
+	var res_id = $("#res").val(); // get selected resource id
+	var res = wialon.core.Session.getInstance().getItem(res_id); // get Resource by id
+	res.getAccountData( function(code, data){ // Get account information as JSON Object
+		if(code){ msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+		// create message with account data
+		var message = "Resource/account <b>'"+ res.getName() +"' </b> is <b>"+
+		(data.enabled ? "enabled" : "blocked")+"</b><br/>"+
+		"Plan: <b>'"+ data.plan +"'</b> Balance: <b>"+ data.balance +"</b><br/>"+"<br/>"+data.settings.subPlans+"<br/>";
+		msg( message); // print message
+	});	
+}
+
+// execute when DOM ready
+$(document).ready(function () {
+	$("#get_btn").click( showInfo ); // bind action to button click 
+	wialon.core.Session.getInstance().initSession("https://hst-api.wialon.com"); // init session
+	wialon.core.Session.getInstance().login("test", "test", "", // try to login
+	    function (code) { // login callback
+	    	if (code){ msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+	    	msg("Logged successfully"); init(); // when login suceed then run init() function
+	});
+});
+
+</script>
+</head>
+<body>
+Select resource: <select id="res"><option></option></select>
+<input type="button" id="get_btn" value="Get account parameters" disabled="disabled"/>
+<div id="log"></div>
+</br>
+<div id="#graph-container">
+<canvas id="#results-graph" style="border:1px solid #000000; background-color: #FFFFFF;" width="400" height="400"></canvas>
+</div>
+</body>
+</html>

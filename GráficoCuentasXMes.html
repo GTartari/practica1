@@ -1,0 +1,135 @@
+﻿<!DOCTYPE html>
+<html>
+<meta charset="UTF-8">
+<head>
+<script type='text/javascript' src='http://code.jquery.com/jquery-latest.min.js'></script>
+<script type='text/javascript' src='https://hst-api.wialon.com/wsdk/script/wialon.js'></script>
+<script type="text/javascript" src="Chart.js-master/Chart.js"></script>
+<script type="text/javascript" src="GlobalChartConfiguration.js"></script>
+<style>
+body {background-color: #E6E6E6;}
+div {background-color: #F3F3FF;}
+h1 {font-size:18px;}
+h2 {font-size:16px;}
+#log { border: 1px solid #c6c6c6; }
+.icon {float:left; margin:10px;}
+</style>
+<script type='text/javascript'>
+
+// Data chart
+var a2014 = [0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0];
+var a2015 = [0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0];
+var myLineChart2014;
+var myLineChart2015;
+
+// Print message to log
+function msg(text) { $("#log").prepend(text + "<br/>"); }
+
+function init() { // Execute after login succeed
+    CreateChart("#results-graph2014", a2014);
+    CreateChart("#results-graph2015", a2015);
+	var sess = wialon.core.Session.getInstance(); // get instance of current Session
+	// flags to specify what kind of data should be returned
+	var flags = wialon.item.Item.dataFlag.base | wialon.item.Item.dataFlag.billingProps;
+	sess.loadLibrary("resourceAccounts"); // load Accounts Library
+	sess.updateDataFlags( // load items to current session
+	    [{type: "type", data: "avl_resource", flags: flags, mode: 0}], // Items specification
+	    function (code) { // updateDataFlags callback
+		    if (code) { msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+		    var res = sess.getItems("avl_resource"); // get loaded 'avl_resource' items
+		    if (!res || !res.length){ msg("No resources found"); return; } // check if resources found
+		    var accounts=[];
+			for(var r=0;r<res.length;r++){
+				if(res[r].getId()==res[r].getAccountId())
+					accounts[accounts.length]=res[r];
+			}
+			total=accounts.length;
+			msg("total de cuentas "+total);
+		    getAccountsDate(accounts);
+	});
+}
+
+// Función para obtener información de la fecha de creación de las cuentas
+function getAccountsDate(accounts){
+	for(var i=600;i<accounts.length;i++){
+		accounts[i].getAccountData( function(code, data){ // Get account information as JSON Object
+			if(code){ msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+            var a = new Date(data.created*1000);
+            var year = a.getFullYear();
+            var month = a.getMonth();
+			if(year == 2014)
+				updateYear(month, a2014);
+            if(year == 2015)
+                updateYear(month, a2015);
+		});	
+	}
+}
+
+// actualizar valores de la información de los gráficos
+function updateYear(val, year){
+    year[val]++;
+    update(year);
+}
+
+// creación de los gráficos
+function CreateChart(chartCanvas, yearData){
+    var canvas = document.getElementById(chartCanvas);
+    var ctx = canvas.getContext('2d');
+    var data = {
+    labels: ["enero","febrero", "marzo" , "abril" , "mayo" , "junio" , "julio" , "agosto" , "septiembre" , "octubre" , "noviembre" , "diciembre"],
+    datasets: [
+        {
+            label: "creación de cuentas 2014",
+            fillColor: "rgba(151,187,205,0.2)",
+            strokeColor: "rgba(151,187,205,1)",
+            pointColor: "rgba(151,187,205,1)",
+            pointStrokeColor: "#fff",
+            pointHighlightFill: "#fff",
+            pointHighlightStroke: "rgba(151,187,205,1)",
+            data: yearData
+        }
+    ]
+	};
+	var myLineChart = new Chart(ctx).Line(data, lineChartOptions);
+    if(yearData == a2014)
+        this.myLineChart2014=myLineChart;
+    if(yearData == a2015)
+        this.myLineChart2015=myLineChart;
+}
+
+// Actualización de los gráficos
+function update(year){
+    if(year == a2014){
+        for(var i=0; i<12; i++)
+            myLineChart2014.datasets[0].points[i].value = a2014[i];
+        myLineChart2014.update();
+    }
+    if(year == a2015){
+        for(var i=0; i<12; i++)
+            myLineChart2015.datasets[0].points[i].value = a2015[i];
+        myLineChart2015.update();
+    }
+}
+
+// execute when DOM ready
+$(document).ready(function () {
+	wialon.core.Session.getInstance().initSession("https://hst-api.wialon.com"); // init session
+	wialon.core.Session.getInstance().login("test", "test", "", // try to login
+	    function (code) { // login callback
+	    	if (code){ msg(wialon.core.Errors.getErrorText(code)); return; } // exit if error code
+	    	msg("Logged successfully"); init(); // when login suceed then run init() function
+	});
+});
+
+</script>
+</head>
+<body>
+<h1>Gráficos de Cuentas Creadas por Mes</h1>
+<div id="log"></div>
+</br>
+<h2>Años 2014 y 2015</h2>
+</br>
+<canvas id="#results-graph2014" style="border:1px solid #000000; background-color: #FFFFFF;" width="400" height="400"></canvas>
+<canvas id="#results-graph2015" style="border:1px solid #000000; background-color: #FFFFFF;" width="400" height="400"></canvas>
+</body>
+</html>
